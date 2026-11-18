@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Liquid Glass Dock Maker – free phone wallpaper dock generator</title>
+<meta name="description" content="Free online tool to add a liquid glass / frosted glass dock to any phone wallpaper. Adjust blur, refraction and shadow, then download. Runs in your browser, no upload, no login.">
+<meta name="keywords" content="glass dock, liquid glass wallpaper, dock wallpaper maker, HyperOS dock, frosted glass dock, phone wallpaper editor">
+<meta property="og:title" content="Liquid Glass Dock Maker">
+<meta property="og:description" content="Add a liquid glass dock to any phone wallpaper. Free, private, runs in your browser.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0f1114">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#15171a;--muted:#6a707a;--line:#dfe2e7;--accent:#2f6bff;--accent-t:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1114;--card:#1a1d22;--text:#eceef2;--muted:#9aa1ad;--line:#2b3037;--accent:#5b8cff;--accent-t:#fff}}
+:root[data-theme="dark"]{--bg:#0f1114;--card:#1a1d22;--text:#eceef2;--muted:#9aa1ad;--line:#2b3037;--accent:#5b8cff;--accent-t:#fff}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Bengali","Segoe UI",sans-serif;line-height:1.4}
+main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 4px}
+p.sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+button,label.btn{display:inline-block;border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:600;background:var(--accent);color:var(--accent-t);cursor:pointer;text-align:center}
+button.alt{background:transparent;color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.45}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1}
+#stage{display:flex;justify-content:center;background:repeating-conic-gradient(var(--line) 0 25%,transparent 0 50%) 0 0/16px 16px;border-radius:12px;overflow:hidden}
+canvas{max-width:100%;max-height:68vh;height:auto;width:auto;display:block}
+#empty{padding:50px 10px;text-align:center;color:var(--muted);font-size:14px}
+.ctl{margin:12px 0}
+.ctl .t{display:flex;justify-content:space-between;font-size:14px}
+.ctl .t b{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--accent);margin:6px 0 0}
+h2{font-size:15px;margin:0 0 4px}
+#msg{font-size:13px;color:var(--muted);margin-top:8px;min-height:18px}
+#fallback{display:none;margin-top:10px}
+#fallback img{width:100%;border-radius:10px}
+</style>
+</head>
+<body>
+<main>
+<h1>Glass Dock Maker</h1>
+<p class="sub" data-i="sub"></p>
+
+<div class="card">
+  <div class="row">
+    <label class="btn" for="file" data-i="pick"></label>
+    <input id="file" type="file" accept="image/*" hidden>
+    <button class="alt" id="reset" data-i="reset"></button>
+    <button class="alt" id="lang">EN</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<div class="card">
+  <div id="stage"><div id="empty" data-i="empty"></div><canvas id="cv" hidden></canvas></div>
+  <div class="row" style="margin-top:12px">
+    <button id="save" disabled data-i="save"></button>
+  </div>
+  <div id="fallback"><p class="sub" data-i="fb"></p><img id="fimg" alt="result"></div>
+</div>
+
+<div class="card" id="controls"></div>
+</main>
+
+<script>
+const DEF={blur:1.5,sat:130,dark:14,refr:70,bevel:9,edge:40,shadow:38,radius:100,height:11,bottom:3.9,margin:1,tint:0,border:0};
+const CTL=[
+ ["refr","লিকুইড রিফ্র্যাকশন (কিনারায় বাঁকা ভাব)",0,100,1,"%"],
+ ["bevel","কিনারার প্রস্থ (যতটা জায়গায় বাঁকবে)",0,20,0.1,"%"],
+ ["edge","কিনারার গভীরতা (ছায়া)",0,100,1,"%"],
+ ["blur","ব্লার",0,10,0.1,"%"],
+ ["sat","রঙের উজ্জ্বলতা",80,200,1,"%"],
+ ["dark","গাঢ়ত্ব",0,60,1,"%"],
+ ["shadow","শ্যাডো",0,90,1,"%"],
+ ["radius","কিনারার কার্ভ (গোলাকার)",0,100,1,"%"],
+ ["height","ডকের উচ্চতা",5,20,0.1,"%"],
+ ["bottom","নিচ থেকে দূরত্ব",0,12,0.1,"%"],
+ ["margin","দুই পাশের ফাঁক",0,8,0.1,"%"],
+ ["tint","সাদা ফ্রস্ট (ঐচ্ছিক, ডিফল্ট বন্ধ)",0,45,1,"%"],
+ ["border","কিনারার আলো (ঐচ্ছিক, ডিফল্ট বন্ধ)",0,100,1,"%"]
+];
+const V={...DEF};
+const $=id=>document.getElementById(id);
+const T={
+bn:{sub:"ওয়ালপেপার দিলে নিচে লিকুইড গ্লাস ডক বসে যাবে। স্লাইডার দিয়ে নিজের মতো ঠিক করো। ছবি কোথাও আপলোড হয় না।",pick:"ওয়ালপেপার বেছে নাও",reset:"রিসেট",empty:"এখানে প্রিভিউ আসবে। আসল ওয়ালপেপার দাও (ডক ও আইকন ছাড়া)।",save:"ছবি সেভ করো (PNG)",fb:"সেভ না হলে ছবিটা চেপে ধরে \"Save image\" দাও:",size:"ছবির মাপ",e_open:"ছবিটা খোলা যায়নি, অন্য ছবি দাও।",e_big:"ছবি তৈরি করা যায়নি (ছবিটা খুব বড় হতে পারে)।",saved:"সেভ হয়েছে।",
+refr:"লিকুইড রিফ্র্যাকশন (কিনারায় বাঁকা ভাব)",bevel:"কিনারার প্রস্থ (যতটা জায়গায় বাঁকবে)",edge:"কিনারার গভীরতা (ছায়া)",blur:"ব্লার",sat:"রঙের উজ্জ্বলতা",dark:"গাঢ়ত্ব",shadow:"শ্যাডো",radius:"কিনারার কার্ভ (গোলাকার)",height:"ডকের উচ্চতা",bottom:"নিচ থেকে দূরত্ব",margin:"দুই পাশের ফাঁক",tint:"সাদা ফ্রস্ট (ঐচ্ছিক, ডিফল্ট বন্ধ)",border:"কিনারার আলো (ঐচ্ছিক, ডিফল্ট বন্ধ)"},
+en:{sub:"Pick a wallpaper and get a liquid glass dock at the bottom. Tune it with the sliders. Your image never leaves your device.",pick:"Choose wallpaper",reset:"Reset",empty:"Preview appears here. Use the original wallpaper (no dock, no icons).",save:"Save image (PNG)",fb:"If it did not save, long-press the image and choose \"Save image\":",size:"Image size",e_open:"Could not open this image. Try another one.",e_big:"Could not create the image (it may be too large).",saved:"Saved.",
+refr:"Liquid refraction (edge bend)",bevel:"Edge width",edge:"Edge depth (shade)",blur:"Blur",sat:"Color saturation",dark:"Darkness",shadow:"Shadow",radius:"Corner roundness",height:"Dock height",bottom:"Distance from bottom",margin:"Side margin",tint:"White frost (optional, off by default)",border:"Edge light (optional, off by default)"}};
+let lang="en";try{lang=localStorage.getItem("lang")||(/^bn/i.test(navigator.language)?"bn":"en")}catch(e){lang=/^bn/i.test(navigator.language)?"bn":"en"}
+const t=k=>T[lang][k];
+function applyLang(){document.documentElement.lang=lang;
+  document.querySelectorAll("[data-i]").forEach(e=>e.textContent=t(e.dataset.i));
+  document.querySelectorAll("[data-k]").forEach(e=>e.textContent=t(e.dataset.k));
+  $("lang").textContent=lang==="bn"?"English":"বাংলা"}
+const cv=$("cv"),ctx=cv.getContext("2d");
+let img=null,fname="wallpaper",lastUrl=null;
+const hasF=(()=>{try{return "filter" in CanvasRenderingContext2D.prototype}catch(e){return false}})();
+let dlP=null;try{dlP=claude.use("downloads")}catch(e){}
+
+const box=$("controls");
+CTL.forEach(([k,label,min,max,step,u])=>{
+  const d=document.createElement("div");d.className="ctl";
+  d.innerHTML=`<div class="t"><span data-k="${k}">${label}</span><b id="v_${k}"></b></div><input type="range" id="r_${k}" min="${min}" max="${max}" step="${step}">`;
+  box.appendChild(d);
+  const r=d.querySelector("input");r.value=V[k];
+  r.addEventListener("input",()=>{V[k]=+r.value;$("v_"+k).textContent=V[k]+u;sched()});
+  $("v_"+k).textContent=V[k]+u;
+});
+function syncUI(){CTL.forEach(([k,,,,,u])=>{$("r_"+k).value=V[k];$("v_"+k).textContent=V[k]+u})}
+let pending=false;
+function sched(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;draw()})}
+
+function blurred(src,px,sat,w,h){
+  const o=document.createElement("canvas");o.width=w;o.height=h;const c=o.getContext("2d");
+  if(hasF){
+    const p=Math.ceil(px*3),t=document.createElement("canvas");t.width=w+2*p;t.height=h+2*p;const tc=t.getContext("2d");
+    tc.drawImage(src,p,p,w,h);
+    tc.drawImage(src,0,0,1,h,0,p,p,h);tc.drawImage(src,w-1,0,1,h,p+w,p,p,h);
+    tc.drawImage(src,0,0,w,1,p,0,w,p);tc.drawImage(src,0,h-1,w,1,p,p+h,w,p);
+    tc.drawImage(src,0,0,1,1,0,0,p,p);tc.drawImage(src,w-1,0,1,1,p+w,0,p,p);
+    tc.drawImage(src,0,h-1,1,1,0,p+h,p,p);tc.drawImage(src,w-1,h-1,1,1,p+w,p+h,p,p);
+    c.filter=`blur(${px}px) saturate(${sat}%)`;c.drawImage(t,-p,-p);c.filter="none"}
+  else{const s=Math.max(1,px/2),sw=Math.max(2,Math.round(w/s)),sh=Math.max(2,Math.round(h/s));
+    const t=document.createElement("canvas");t.width=sw;t.height=sh;const tc=t.getContext("2d");
+    tc.imageSmoothingQuality="high";tc.drawImage(src,0,0,sw,sh);c.imageSmoothingQuality="high";c.drawImage(t,0,0,w,h)}
+  return o;
+}
+function capsule(c,x,y,w,h,r){
+  r=Math.min(r,h/2,w/2);c.beginPath();
+  c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,x+w,y+r,r);
+  c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);
+  c.lineTo(x+r,y+h);c.arcTo(x,y+h,x,y+h-r,r);
+  c.lineTo(x,y+r);c.arcTo(x,y,x+r,y,r);c.closePath();
+}
+function draw(){
+  if(!img)return;
+  const W=img.naturalWidth,H=img.naturalHeight;
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+  const dw=W*(1-2*V.margin/100),dh=H*V.height/100,dx=W*V.margin/100,dy=H*(1-V.bottom/100)-dh;
+  const rad=Math.min((dh/2)*V.radius/100,dw/2);
+  ctx.clearRect(0,0,W,H);ctx.drawImage(img,0,0,W,H);
+  if(V.shadow>0){
+    ctx.save();ctx.shadowColor=`rgba(0,0,0,${V.shadow/100})`;ctx.shadowBlur=dh*0.28;ctx.shadowOffsetY=dh*0.08;
+    capsule(ctx,dx,dy,dw,dh,rad);ctx.fillStyle="#000";ctx.fill();ctx.restore();
+  }
+  // liquid-glass body: light blur + edge refraction (per pixel)
+  const src=blurred(img,Math.max(0.3,W*V.blur/100),V.sat,W,H);
+  const S=src.getContext("2d").getImageData(0,0,W,H),sd=S.data;
+  const rx=Math.max(0,Math.floor(dx)-1),ry=Math.max(0,Math.floor(dy)-1);
+  const rw=Math.min(W-rx,Math.ceil(dw)+3),rh=Math.min(H-ry,Math.ceil(dh)+3);
+  const O=ctx.createImageData(rw,rh),od=O.data;
+  const cx=dx+dw/2,cy=dy+dh/2,hw=dw/2,hh=dh/2;
+  const sdf=(px,py)=>{const qx=Math.abs(px-cx)-(hw-rad),qy=Math.abs(py-cy)-(hh-rad);
+    return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-rad};
+  const bw=Math.max(1,dh*V.bevel/100),amp=bw*V.refr/100*0.9,chroma=0.18;
+  const dark=V.dark/100,edge=V.edge/100,tint=V.tint/100,rim=V.border/100,rw1=Math.max(1.5,W/650);
+  const samp=(x,y,ch)=>{
+    x=Math.min(W-1.001,Math.max(0,x));y=Math.min(H-1.001,Math.max(0,y));
+    const x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,i=(y0*W+x0)*4+ch,j=i+W*4;
+    return (sd[i]*(1-fx)+sd[i+4]*fx)*(1-fy)+(sd[j]*(1-fx)+sd[j+4]*fx)*fy;
+  };
+  for(let y=0;y<rh;y++)for(let x=0;x<rw;x++){
+    const px=rx+x+0.5,py=ry+y+0.5,s=sdf(px,py);
+    if(s>0.5)continue;
+    const a=Math.min(1,0.5-s),d=-s,o=(y*rw+x)*4;
+    let ox=0,oy=0;
+    if(d<bw&&amp>0){
+      const t=1-d/bw,m=amp*t*t,e=0.7;
+      let gx=sdf(px+e,py)-sdf(px-e,py),gy=sdf(px,py+e)-sdf(px,py-e);
+      const gl=Math.hypot(gx,gy)||1;ox=gx/gl*m;oy=gy/gl*m;
+    }
+    let r=samp(px+ox*(1+chroma),py+oy*(1+chroma),0),g=samp(px+ox,py+oy,1),b=samp(px+ox*(1-chroma),py+oy*(1-chroma),2);
+    let k=1-dark;
+    if(edge>0&&d<bw*1.6){const t=1-d/(bw*1.6);k*=1-edge*0.5*t*t}
+    r*=k;g*=k;b*=k;
+    if(tint>0){r+=(255-r)*tint;g+=(255-g)*tint;b+=(255-b)*tint}
+    if(rim>0&&d<rw1*2){const t=rim*0.6*(1-d/(rw1*2));r+=(255-r)*t;g+=(255-g)*t;b+=(255-b)*t}
+    od[o]=r;od[o+1]=g;od[o+2]=b;od[o+3]=255*a;
+  }
+  const tmp=document.createElement("canvas");tmp.width=rw;tmp.height=rh;tmp.getContext("2d").putImageData(O,0,0);
+  ctx.drawImage(tmp,rx,ry);
+}
+
+$("file").addEventListener("change",e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  fname=(f.name||"wallpaper").replace(/\.[^.]+$/,"");
+  const url=URL.createObjectURL(f),im=new Image();
+  im.onload=()=>{img=im;$("empty").hidden=true;cv.hidden=false;$("save").disabled=false;
+    $("msg").textContent=`${t("size")}: ${im.naturalWidth} × ${im.naturalHeight}`;$("fallback").style.display="none";draw()};
+  im.onerror=()=>{$("msg").textContent=t("e_open")};
+  im.src=url;
+});
+$("reset").addEventListener("click",()=>{Object.assign(V,DEF);syncUI();sched()});
+
+$("save").addEventListener("click",()=>{
+  if(!img)return;
+  cv.toBlob(async blob=>{
+    if(!blob){$("msg").textContent=t("e_big");return}
+    if(lastUrl)URL.revokeObjectURL(lastUrl);
+    lastUrl=URL.createObjectURL(blob);$("fimg").src=lastUrl;$("fallback").style.display="block";
+    let dl=null;try{dl=await dlP}catch(e){}
+    if(!dl){const a=document.createElement("a");a.href=lastUrl;a.download=fname+"_glass_dock.png";document.body.appendChild(a);a.click();a.remove();$("msg").textContent=t("saved");return}
+    try{await dl.save({filename:fname+"_glass_dock.png",data:blob});$("msg").textContent=t("saved")}
+    catch(e){}
+  },"image/png");
+});
+$("lang").addEventListener("click",()=>{lang=lang==="bn"?"en":"bn";try{localStorage.setItem("lang",lang)}catch(e){}applyLang()});
+applyLang();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
